@@ -4,7 +4,7 @@ Table3_Simulations.R: Example simulation code used for Table 3 of the paper. The
 
 Combine.R: Code to combine simulation results across iterations (from the parallel comptuing output)
 
-Sim_Result.R: Code to generate simulation result tables
+Sims_Result.R: Code to generate simulation result tables
 
 Functions.R: Functions to compute the joint likelihood and Hessian matrix assuming constant baseline hazard function (i.e., exponential model)
 
