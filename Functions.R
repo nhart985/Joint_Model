@@ -1,4 +1,3 @@
-
 h_t=function(q,start,Z,beta,lambda,alpha,theta0,theta1,theta2) {
   s=start+q
   return(lambda*exp(as.numeric(beta%*%Z)+alpha*exp(theta0+theta1*s+theta2*s^2)))
@@ -39,7 +38,7 @@ Log_L=function(beta,lambda,alpha,theta0,theta1,theta2,surv_dat,inf_dat) {
     Delta=surv_dat$status[surv_dat$id==i]
     start=surv_dat$starts[surv_dat$id==i]
     Z_names=names(surv_dat)[substr(names(surv_dat),1,1)=="Z"]
-    Z=as.numeric(as.matrix(surv_dat[,Z_names])[surv_dat$id==i,])
+    Z=as.numeric(surv_dat[,Z_names][surv_dat$id==i])
     
     result[i]=log(h_t(X,start,Z,beta,lambda,alpha,theta0,theta1,theta2)^Delta)+log(S_t(X,start,Z,beta,lambda,alpha,theta0,theta1,theta2))
   }
@@ -69,7 +68,7 @@ D_Log_L=function(beta,lambda,alpha,theta0,theta1,theta2,surv_dat,inf_dat) {
     X=surv_dat$eventtime[surv_dat$id==i]
     Delta=surv_dat$status[surv_dat$id==i]
     start=surv_dat$starts[surv_dat$id==i]
-    Z=as.numeric(surv_dat[,Z_names][surv_dat$id==i,])
+    Z=as.numeric(surv_dat[,Z_names][surv_dat$id==i])
     
     dbeta=dbeta+Delta*Z+log(S_t(X,start,Z,beta,lambda,alpha,theta0,theta1,theta2))*Z
     dtheta0=dtheta0+Delta*alpha*exp(theta0+theta1*(start+X)+theta2*(start+X)^2)+D_Helper(X,start,Z,beta,lambda,alpha,theta0,theta1,theta2,s_fun=function(s){alpha*exp(theta0+theta1*s+theta2*s^2)})
@@ -134,7 +133,7 @@ D2_Log_L=function(beta,lambda,alpha,theta0,theta1,theta2,surv_dat,inf_dat) {
     X=surv_dat$eventtime[surv_dat$id==i]
     Delta=surv_dat$status[surv_dat$id==i]
     start=surv_dat$starts[surv_dat$id==i]
-    Z=as.numeric(as.matrix(surv_dat[,Z_names])[surv_dat$id==i,])
+    Z=as.numeric(surv_dat[,Z_names][surv_dat$id==i])
     
     dbeta_dbeta=dbeta_dbeta+(Z%o%Z)*log(S_t(X,start,Z,beta,lambda,alpha,theta0,theta1,theta2))
     dbeta_lambda=dbeta_lambda+log(S_t(X,start,Z,beta,lambda,alpha,theta0,theta1,theta2))*Z/lambda
@@ -173,4 +172,18 @@ D2_Log_L=function(beta,lambda,alpha,theta0,theta1,theta2,surv_dat,inf_dat) {
                                                                          dlambda_theta1,dalpha_theta1,dtheta0_theta1,dtheta1_theta1,dtheta1_theta2,
                                                                          dlambda_theta2,dalpha_theta2,dtheta0_theta2,dtheta1_theta2,dtheta2_theta2))
   return(hess)
+}
+
+Boot=function(dat,theta,sigma_theta,nboot=100) {
+  boots=matrix(0,nboot,3)
+  theta_boot=mvrnorm(nboot,theta,sigma_theta)
+  for(i in 1:nboot) {
+    dat$Rhat_stage1=exp(theta_boot[i,1]+theta_boot[i,2]*dat$s+theta_boot[i,3]*dat$s^2)
+    initial=phreg(Surv(tstart,tstop,tdelta)~Z+Rhat_stage1,data=dat,dist="weibull",shape=1)
+    beta_stage1=initial$coefficients["Z"]
+    alpha_stage1=initial$coefficients["Rhat_stage1"]
+    lambda_stage1=1/exp(initial$coefficients["log(scale)"])
+    boots[i,]=c(beta_stage1,lambda_stage1,alpha_stage1)
+  }
+  return(apply(boots,2,sd))
 }
