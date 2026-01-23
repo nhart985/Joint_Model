@@ -8,5 +8,10 @@ Sims_Result.R: Code to generate simulation result tables
 
 Functions.R: Functions to compute the joint likelihood and Hessian matrix assuming constant baseline hazard function (i.e., exponential model)
 
-SemiPar_Functions.R: Functions to compute the joint profile likelihood and Hessian matrix based on the Breslow approach with left-truncation
+Real_Functions_Quadratic.R: Functions to compute the joint profile likelihood and Hessian matrix based on the Breslow approach with left-truncation, for the quadratic epidemic model
 
+Real_Functions_Cubic.R: Functions to compute the joint profile likelihood and Hessian matrix based on the Breslow approach with left-truncation, for the cubic epidemic model
+
+COVID_Quadratic.R: COVID-19 and liver transplant analysis with quadratic epidemic model
+
+COVID_Cubic.R: COVID-19 and liver transplant analysis with cubic epidemic model
