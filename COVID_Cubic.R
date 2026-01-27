@@ -9,12 +9,12 @@ library(data.table)
 library(risksetROC)
 library(dplyr)
 
-source("//Joint Model//Real_Functions_Cubic.R")
+source("//Documents//Joint Model//Real_Functions_Cubic.R")
 
 ###########
 #COVID Data
 ###########
-covid=read.csv("//time_series_covid19_deaths_US.csv")
+covid=read.csv("//Downloads//time_series_covid19_confirmed_US.csv")
 dates=names(covid)[substr(names(covid),1,1)=="X"]
 dates=substr(dates,start=2,stop=9)
 dates=as.Date(dates,format="%m.%d.%y")
@@ -41,7 +41,7 @@ g=g+scale_x_continuous(breaks=seq(1,length(fig_dat$dates),by=2),labels=fig_dat$d
 ########
 #Tx Data
 ########
-df=as.data.frame(read_sas("//liver_data.sas7bdat"))
+df=as.data.frame(read_sas("//Downloads//SAS Dataset 202406//Liver//liver_data.sas7bdat"))
 dat=df[!is.na(df$INIT_DATE) & !is.na(df$END_DATE),]
 dat=dat[dat$END_DATE > as.Date(dates[1]) & dat$INIT_DATE < as.Date(dates[length(dates)]),]
 dat$INIT_DATE=as.Date(dat$INIT_DATE)
@@ -75,7 +75,7 @@ g2=g2+theme(text=element_text(size=24),axis.text.x=element_text(angle=90),axis.t
 g2=g2+scale_x_continuous(breaks=seq(1,length(fig_dat$dates),by=2),labels=fig_dat$dates[seq(1,length(fig_dat$dates),by=2)])
 
 ggarrange(g,g2,nrow=1)
-ggsave(file="//Joint Model//Cubic//SideBySide.pdf",width=18,height=8)
+ggsave(file="//Documents//Joint Model//SideBySide.pdf",width=18,height=8)
 
 #########################
 #Censoring and Truncation
@@ -176,41 +176,64 @@ dat=tmerge(temp,cov_dat,id=id,I=tdc(t,I),s=tdc(t,s),
 dat$tstart=dat$tstart+dat$lt
 dat$tstop=dat$tstop+dat$lt
 
-fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2,data=dat)
+fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2,data=dat,method="breslow")
 beta_naive=coef(fit)[1:2]
 naive_ses=c(summary(fit)$coefficients[,"se(coef)"],NA)
+beta_naive_initial=coef(fit)[1:2]
+alpha_naive_initial=coef(fit)[3]
+opt=optim(par=beta_naive_initial,fn=Naive_Neg_Log_L,surv_dat=surv_dat,period=1,naive=T,hessian=T)
+beta_naive=opt$par[1:2]
+naive_ses=c(sqrt(diag(solve(opt$hessian))),NA)
 
 dates[s >= 1 & s <= 5  | s >= 17 & s <= 20]
 dat$covid1=as.numeric(dat$s >= 1 & dat$s <= 5 | dat$s >= 17 & dat$s <= 20)
-fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+covid1,data=dat)
-beta_period1=coef(fit)[1:2]
-alpha_period1=coef(fit)[3]
-period_ses1=summary(fit)$coefficients[,"se(coef)"]
+fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+covid1,data=dat,method="breslow")
+beta_period1_initial=coef(fit)[1:2]
+alpha_period1_initial=coef(fit)[3]
+opt=optim(par=c(beta_period1_initial,alpha_period1_initial),fn=Naive_Neg_Log_L,surv_dat=surv_dat,period=1,hessian=T)
+beta_period1=opt$par[1:2]
+alpha_period1=opt$par[3]
+period1_ses=sqrt(diag(solve(opt$hessian)))
 
 dates[s >= 1 & s <= 13]
 dat$covid2=as.numeric(dat$s >= 1 & dat$s <= 13)
-fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+covid2,data=dat)
-beta_period2=coef(fit)[1:2]
-alpha_period2=coef(fit)[3]
-period_ses2=summary(fit)$coefficients[,"se(coef)"]
+fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+covid2,data=dat,method="breslow")
+beta_period2_initial=coef(fit)[1:2]
+alpha_period2_initial=coef(fit)[3]
+opt=optim(par=c(beta_period2_initial,alpha_period2_initial),fn=Naive_Neg_Log_L,surv_dat=surv_dat,period=2,hessian=T)
+beta_period2=opt$par[1:2]
+alpha_period2=opt$par[3]
+period2_ses=sqrt(diag(solve(opt$hessian)))
 
-fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+Rhat,data=dat)
-beta_raw=coef(fit)[1:2]
-alpha_raw=coef(fit)[3]
-raw_ses=c(summary(fit)$coefficients[,"se(coef)"],NA,NA,NA,NA)
+fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+Rhat,data=dat,method="breslow")
+beta_raw_initial=coef(fit)[1:2]
+alpha_raw_initial=coef(fit)[3]
+raw_ses=c(summary(fit)$coefficients[,"se(coef)"],NA,NA,NA)
+opt=optim(par=c(beta_raw_initial,alpha_raw_initial),fn=Test_Neg_Log_L,theta0=NA,theta1=NA,theta2=NA,theta3=NA,surv_dat=surv_dat,raw=T,inf_dat=inf_dat,hessian=T)
+beta_raw=opt$par[1:2]
+alpha_raw=opt$par[3]
+raw_ses=c(sqrt(diag(solve(opt$hessian))),NA,NA,NA)
 
-fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+Rhat_smooth,data=dat)
-beta_smooth=coef(fit)[1:2]
-alpha_smooth=coef(fit)[3]
-smooth_ses=c(summary(fit)$coefficients[,"se(coef)"],smooth_inf_ses)
+fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+Rhat_smooth,data=dat,method="breslow")
+beta_smooth_initial=coef(fit)[1:2]
+alpha_smooth_initial=coef(fit)[3]
+opt=optim(par=c(beta_smooth_initial,alpha_smooth_initial),fn=Test_Neg_Log_L,theta0=theta0_smooth,theta1=theta1_smooth,theta2=theta2_smooth,theta3=theta3_smooth,surv_dat=surv_dat)
+beta_smooth=opt$par[1:2]
+alpha_smooth=opt$par[3]
+temp_var=diag(solve(Test_D2_Log_L(beta_smooth,alpha_smooth,theta0_smooth,theta1_smooth,theta2_smooth,theta3_smooth,surv_dat=surv_dat,inf_dat=inf_dat)))
+smooth_ses=c(sqrt(temp_var),smooth_inf_ses)
 
-fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+Rhat_stage1,data=dat)
-beta_stage1=coef(fit)[1:2]
-alpha_stage1=coef(fit)[3]
-stage1_ses=c(summary(fit)$coefficients[,"se(coef)"],stage1_inf_ses)
+fit=coxph(Surv(tstart,tstop,tdelta)~Z1+Z2+Rhat_stage1,data=dat,method="breslow")
+beta_stage1_initial=coef(fit)[1:2]
+alpha_stage1_initial=coef(fit)[3]
+opt=optim(par=c(beta_stage1_initial,alpha_stage1_initial),fn=Test_Neg_Log_L,theta0=theta0_stage1,theta1=theta1_stage1,theta2=theta2_stage1,theta3=theta3_stage1,surv_dat=surv_dat)
+beta_stage1=opt$par[1:2]
+alpha_stage1=opt$par[3]
+temp_var=diag(solve(Test_D2_Log_L(beta_stage1,alpha_stage1,theta0_stage1,theta1_stage1,theta2_stage1,theta3_stage1,surv_dat=surv_dat,inf_dat=inf_dat)))
+stage1_ses=c(sqrt(temp_var),stage1_inf_ses)
 
-opt=optim(par=c(beta_stage1,alpha_stage1,theta0_stage1,theta1_stage1,theta2_stage1,theta3_stage1,phi_stage1),fn=Neg_Log_L,surv_dat=surv_dat,inf_dat=inf_dat)
-save(opt,file=" //Joint Model//Cubic//joint_opt.Rdata")
+opt=optim(par=c(beta_stage1_initial,alpha_stage1_initial,theta0_stage1,theta1_stage1,theta2_stage1,theta3_stage1,phi_stage1),fn=Neg_Log_L,surv_dat=surv_dat,inf_dat=inf_dat)
+save(opt,file="//Documents//Joint Model//Cubic//joint_opt.Rdata")
 result=opt$par[1:7]
 phi_joint=opt$par[8]
 Vcov_joint=solve(D2_Log_L(opt$par[1:length(beta_stage1)],opt$par[length(beta_stage1)+1],opt$par[length(beta_stage1)+2],opt$par[length(beta_stage1)+3],opt$par[length(beta_stage1)+4],opt$par[length(beta_stage1)+5],opt$par[length(beta_stage1)+6],surv_dat=surv_dat,inf_dat=inf_dat))
@@ -224,29 +247,29 @@ alpha_result_table_naive=matrix(c(beta_naive,NA,
                                   beta_period2,alpha_period2),
                                 nrow=3,ncol=3,byrow=T)
 alpha_result_table_naive
-write.csv(alpha_result_table_naive," //Joint Model//Cubic//alpha_result_table_naive.csv",row.names=F)
+write.csv(alpha_result_table_naive,"//Documents//Joint Model//Cubic//alpha_result_table_naive.csv",row.names=F)
 
-alpha_ses_table_naive=matrix(c(naive_ses,period_ses1,period_ses2),nrow=3,ncol=3,byrow=T)
-write.csv(alpha_ses_table_naive," //Joint Model//Cubic//alpha_ses_table_naive.csv",row.names=F)
+alpha_ses_table_naive=matrix(c(naive_ses,period1_ses,period2_ses),nrow=3,ncol=3,byrow=T)
+write.csv(alpha_ses_table_naive,"//Documents//Joint Model//Cubic//alpha_ses_table_naive.csv",row.names=F)
 
 alpha_result_table=matrix(c(beta_raw,alpha_raw,NA,NA,NA,NA,
                             beta_smooth,alpha_smooth,theta0_smooth,theta1_smooth,theta2_smooth,theta3_smooth,
                             beta_stage1,alpha_stage1,theta0_stage1,theta1_stage1,theta2_stage1,theta3_stage1,
                             result),nrow=4,ncol=7,byrow=T)
-write.csv(alpha_result_table," //Joint Model//Cubic//alpha_result_table.csv",row.names=F)
+write.csv(alpha_result_table,"//Documents//Joint Model//Cubic//alpha_result_table.csv",row.names=F)
 
 alpha_ses_table=matrix(c(raw_ses,smooth_ses,stage1_ses,joint_ses),nrow=4,ncol=7,byrow=T)
-write.csv(alpha_ses_table," //Joint Model//Cubic//alpha_ses_table.csv",row.names=F)
+write.csv(alpha_ses_table,"//Documents//Joint Model//Cubic//alpha_ses_table.csv",row.names=F)
 
 Vcov_list=list(Vcov_smooth,Vcov_stage1,Vcov_joint)
-save(Vcov_list,file=" //Joint Model//Cubic//Vcov_list.Rdata")
+save(Vcov_list,file="//Documents//Joint Model//Cubic//Vcov_list.Rdata")
 
-alpha_result_table_naive=read.csv(" //Joint Model//Cubic//alpha_result_table_naive.csv")
-alpha_ses_table_naive=read.csv(" //Joint Model//Cubic//alpha_ses_table_naive.csv")
-alpha_result_table=read.csv(" //Joint Model//Cubic//alpha_result_table.csv")
-alpha_ses_table=read.csv(" //Joint Model//Cubic//alpha_ses_table.csv")
+alpha_result_table_naive=read.csv("//Documents//Joint Model//Cubic//alpha_result_table_naive.csv")
+alpha_ses_table_naive=read.csv("//Documents//Joint Model//Cubic//alpha_ses_table_naive.csv")
+alpha_result_table=read.csv("//Documents//Joint Model//Cubic//alpha_result_table.csv")
+alpha_ses_table=read.csv("//Documents//Joint Model//Cubic//alpha_ses_table.csv")
 
-load(" //Joint Model//Cubic//Vcov_list.Rdata")
+load("//Documents//Joint Model//Cubic//Vcov_list.Rdata")
 
 get_tab=function(est,ses) {
   hr=format(round(exp(est),2),nsmall=2)[1:3]
@@ -322,5 +345,4 @@ fit_stats_naive=data.table(inf=NA,
 fit_stats=rbind(fit_stats_naive,fit_stats)
 row.names(fit_stats)=c("Hazard","Period 1","Period 2","Raw","Smooth","Stage 1","Joint")
 print(xtable(fit_stats))
-
 

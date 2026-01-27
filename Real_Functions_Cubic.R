@@ -273,4 +273,87 @@ Inf_Log_L=function(theta0,theta1,theta2,theta3,phi,inf_dat,raw=F) {
   return(l_I)
 }
 
+Test_Log_L=function(beta,alpha,theta0,theta1,theta2,theta3,surv_dat) {
+  
+  haz_result=h_t(beta,alpha,theta0,theta1,theta2,theta3,surv_dat)
+  h_vals=haz_result$h
+  
+  return(sum(log(h_vals)))
+}
+
+Naive_Neg_Log_L=function(par,surv_dat,period=1,naive=F) {
+  Z_names=names(surv_dat)[substr(names(surv_dat),1,1)=="Z"]
+  if(!naive) {
+    result=-Surv_Log_L_Naive(par[1:length(Z_names)],par[length(Z_names)+1],surv_dat,period)
+  } else {
+    result=-Surv_Log_L_Naive(par[1:length(Z_names)],0,surv_dat,period)
+    
+  }
+  return(result)
+}
+
+Test_Neg_Log_L=function(par,theta0,theta1,theta2,theta3,surv_dat,raw=F,inf_dat=NULL) {
+  Z_names=names(surv_dat)[substr(names(surv_dat),1,1)=="Z"]
+  result=-Surv_Log_L(par[1:length(Z_names)],par[length(Z_names)+1],theta0,theta1,theta2,theta3,surv_dat,raw=raw,inf_dat=inf_dat)
+  show(c(par,result))
+  return(result)
+}
+
+Test_D2_Log_L=function(beta,alpha,theta0,theta1,theta2,theta3,surv_dat,inf_dat) {
+  
+  s=inf_dat$s
+  I=inf_dat$I
+  I_prev=inf_dat$I_prev
+  Z_names=names(surv_dat)[substr(names(surv_dat),1,1)=="Z"]
+  
+  R=exp(theta0+theta1*s+theta2*s^2+theta3*s^3)
+  n=dim(surv_dat)[1]
+  dbeta=matrix(0,nrow=length(Z_names),ncol=n)
+  dalpha=rep(0,n)
+  
+  surv_dat=surv_dat[order(surv_dat$eventtime),]
+  fill=which(surv_dat$status==1)
+  
+  s_i=surv_dat$starts[surv_dat$status==1]+surv_dat$eventtime[surv_dat$status==1]-surv_dat$lt[surv_dat$status==1]
+  exp_i=exp(theta0+theta1*s_i+theta2*s_i^2+theta3*s_i^3)
+  
+  for(i in 1:length(Z_names)) {
+    dbeta[i,fill]=dbeta[i,fill]+as.numeric(surv_dat[surv_dat$status==1,Z_names[i]])-D_Helper(beta,alpha,theta0,theta1,theta2,theta3,surv_dat,db=T,Z_index=i)
+  }
+  dalpha[fill]=dalpha[fill]+exp_i-D_Helper(beta,alpha,theta0,theta1,theta2,theta3,surv_dat,f=function(s) {exp(theta0+theta1*s+theta2*(s^2)+theta3*(s^3))})
+  
+  dbeta_beta=matrix(0,nrow=length(Z_names),ncol=length(Z_names))
+  dbeta_alpha=vector("numeric")
+  
+  for(i in 1:length(Z_names)) {
+    dbeta_alpha[i]=sum(dbeta[i,]*dalpha,na.rm=T)
+    for(j in 1:length(Z_names)) {
+      dbeta_beta[i,j]=sum(dbeta[i,]*dbeta[j,],na.rm=T)
+    }
+  }
+  
+  dalpha_alpha=sum(dalpha^2,na.rm=T)
+  
+  hess=matrix(NA,nrow=3,ncol=3)
+  
+  hess[1:length(Z_names),1:length(Z_names)]=dbeta_beta
+  
+  hess[1:length(Z_names),length(Z_names)+1]=dbeta_alpha
+  
+  hess[(length(Z_names)+1),1:length(Z_names)]=dbeta_alpha
+  
+  hess[(length(Z_names)+1),(length(Z_names)+1)]=dalpha_alpha
+  
+  return(hess)
+}
+
+
+
+
+
+
+
+
+
+
 
